@@ -1,0 +1,10 @@
+{
+  "manifestVersion": 1,
+  "id": "com.example.quayt-clapp",
+  "name": "quayt-clapp",
+  "description": "A Clatch app.",
+  "version": "0.1.0",
+  "protocol": 2,
+  "launch": { "macos": "run.sh" },
+  "connector": { "cli": "quayt-clapp", "cliBin": "run.sh", "signals": [] }
+}
