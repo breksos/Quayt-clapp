@@ -1,10 +1,22 @@
 {
   "manifestVersion": 1,
-  "id": "com.example.quayt-clapp",
-  "name": "quayt-clapp",
-  "description": "A Clatch app.",
+  "id": "com.arfium.quayt",
+  "name": "Quayt",
+  "description": "Desktop terminal foundation with shared connection status for people and agents.",
   "version": "0.1.0",
   "protocol": 2,
-  "launch": { "macos": "run.sh" },
-  "connector": { "cli": "quayt-clapp", "cliBin": "run.sh", "signals": [] }
+  "icon": "assets/icon.png",
+  "launch": { "macos": "bin/quayt", "args": ["app"] },
+  "connector": {
+    "cli": "quayt",
+    "cliBin": "bin/quayt",
+    "commands": [
+      { "name": "status", "about": "show the current Quayt connection status" },
+      { "name": "show", "about": "show the Quayt window" },
+      { "name": "hide", "about": "hide the Quayt window" },
+      { "name": "quit", "about": "quit Quayt" },
+      { "name": "ping", "about": "check whether Quayt is running" }
+    ],
+    "signals": []
+  }
 }

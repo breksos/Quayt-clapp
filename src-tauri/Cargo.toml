@@ -1,0 +1,28 @@
+[package]
+name = "quayt"
+version = "0.1.0"
+description = "Quayt ClappKit desktop terminal"
+edition = "2021"
+build = "build.rs"
+
+[[bin]]
+name = "quayt"
+path = "src/main.rs"
+
+[lib]
+name = "quayt"
+path = "src/lib.rs"
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]
+
+[dependencies]
+clappkit = { path = "../clappkit", features = ["tauri"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tauri = { version = "2", features = [] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync"] }
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
