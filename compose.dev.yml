@@ -1,0 +1,14 @@
+services:
+  postgres:
+    image: postgres:17.5-bookworm
+    environment:
+      POSTGRES_DB: quayt_dev
+      POSTGRES_PASSWORD: quayt_dev_only
+      POSTGRES_USER: quayt_dev
+    ports:
+      - 127.0.0.1:54329:5432
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U quayt_dev -d quayt_dev"]
+      interval: 10s
+      timeout: 5s
+      retries: 5

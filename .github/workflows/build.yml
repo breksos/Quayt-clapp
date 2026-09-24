@@ -24,13 +24,13 @@ jobs:
       - run: npm run validate:manifest
 
   acceptance:
-    name: Phase 1 acceptance contract
+    name: Phase 2 acceptance contract
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           submodules: recursive
-      - run: python3 qa/phase1_acceptance.py
+      - run: python3 qa/phase2_acceptance.py
 
   web:
     name: Web frontend
@@ -64,8 +64,24 @@ jobs:
       - run: cargo test --manifest-path src-tauri/Cargo.toml --locked
 
   python:
-    name: Python service
+    name: Python service and PostgreSQL schema
     runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:17.5-bookworm
+        env:
+          POSTGRES_DB: quayt_test
+          POSTGRES_PASSWORD: quayt_ci
+          POSTGRES_USER: quayt
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U quayt -d quayt_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      QUAYT_DATABASE_URL: postgresql+psycopg://quayt:quayt_ci@127.0.0.1:5432/quayt_test
     defaults:
       run:
         working-directory: service
@@ -82,4 +98,6 @@ jobs:
       - run: ruff format --check .
       - run: ruff check .
       - run: mypy
+      - run: alembic upgrade head
+      - run: alembic check
       - run: pytest

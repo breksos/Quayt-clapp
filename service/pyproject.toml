@@ -8,7 +8,11 @@ version = "0.1.0"
 description = "Quayt central service"
 requires-python = ">=3.9"
 dependencies = [
+  "alembic>=1.14,<2",
   "fastapi>=0.115,<1",
+  "psycopg[binary]>=3.2,<4",
+  "PyJWT[crypto]>=2.10,<3",
+  "SQLAlchemy>=2,<3",
   "uvicorn>=0.34,<1",
 ]
 
@@ -26,6 +30,9 @@ quayt-service = "quayt_service.__main__:main"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+quayt_service = ["py.typed"]
+
 [tool.pytest.ini_options]
 addopts = "-q"
 testpaths = ["tests"]
@@ -41,3 +48,5 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 python_version = "3.9"
 strict = true
 packages = ["quayt_service"]
+mypy_path = "src"
+explicit_package_bases = true

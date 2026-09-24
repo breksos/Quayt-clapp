@@ -1,5 +1,8 @@
 # Phase 1 central service
 
+This document records the Phase 1 foundation. Phase 2 configuration and runtime commands
+are defined in `phase-2-authentication.md` and supersede the Phase 1 development defaults.
+
 The Python service is a separate HTTPS/JSON authority boundary. Phase 1 provides only
 liveness, readiness, an empty versioned API root, configuration validation, explicit
 request-context types, and the common error envelope. It contains no login flow, tenant

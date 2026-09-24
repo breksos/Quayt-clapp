@@ -22,6 +22,7 @@ The original Python Quayt repository is read-only reference material. Reuse is d
 
 ## Current phase
 
-Phase 1, the secure foundation, is authorized. Its scope and acceptance gates are in
-`docs/phase-1.md`. No operational domain feature, legacy-code transfer, deployment,
-publication, production access, or external contact is authorized in this phase.
+Phase 2, authentication and tenant sessions, is authorized. Its scope and acceptance
+gates are in `docs/phase-2.md`. No operational domain feature, legacy-code transfer,
+production deployment, publication, production access, or external contact is authorized
+in this phase.

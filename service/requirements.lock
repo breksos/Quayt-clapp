@@ -1,9 +1,12 @@
-# Exact runtime and development environment verified for Phase 1.
+# Exact runtime and development environment verified for Phase 2.
+alembic==1.16.5
 annotated-doc==0.0.5
 annotated-types==0.7.0
 anyio==4.12.1
 certifi==2026.7.22
+cffi==2.0.0
 click==8.1.8
+cryptography==50.0.1
 exceptiongroup==1.3.1; python_version < "3.11"
 fastapi==0.128.8
 h11==0.16.0
@@ -12,6 +15,8 @@ httpx==0.28.1
 idna==3.20
 iniconfig==2.1.0
 librt==0.15.0; platform_python_implementation != "PyPy"
+Mako==1.3.12
+MarkupSafe==3.0.3
 mypy==1.19.1
 mypy_extensions==1.1.0
 packaging==26.3
@@ -19,9 +24,14 @@ pathspec==1.1.1
 pluggy==1.6.0
 pydantic==2.13.5
 pydantic-core==2.46.5
+psycopg==3.2.13
+psycopg-binary==3.2.13
+pycparser==2.23
 Pygments==2.21.0
+PyJWT==2.15.0
 pytest==8.4.2
 ruff==0.16.8
+SQLAlchemy==2.0.54
 starlette==0.49.3
 tomli==2.4.1; python_version < "3.11"
 typing_extensions==4.16.0

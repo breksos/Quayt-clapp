@@ -2,7 +2,7 @@
   "manifestVersion": 1,
   "id": "com.arfium.quayt",
   "name": "Quayt",
-  "description": "Desktop terminal foundation with shared connection status for people and agents.",
+  "description": "Secure desktop terminal with OIDC sign-in and server-verified tenant access.",
   "version": "0.1.0",
   "protocol": 2,
   "icon": "assets/icon.png",

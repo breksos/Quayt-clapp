@@ -18,11 +18,22 @@ default = ["custom-protocol"]
 custom-protocol = ["tauri/custom-protocol"]
 
 [dependencies]
+base64 = "0.22"
 clappkit = { path = "../clappkit", features = ["tauri"] }
+getrandom = "0.3"
+keyring = { version = "3.6", features = ["apple-native"] }
+open = "5.3"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+sha2 = "0.10"
+subtle = "2.6"
 tauri = { version = "2", features = [] }
-tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "net", "io-util", "time", "test-util"] }
+tokio-util = "0.7"
+url = "2.5"
+uuid = { version = "1", features = ["serde", "v4"] }
+zeroize = "1.8"
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }

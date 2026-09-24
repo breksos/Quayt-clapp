@@ -1,4 +1,4 @@
-# Phase 1 threat model
+# Security threat model
 
 ## Scope
 
@@ -52,3 +52,56 @@ protection Phase 1 can provide.
   only human actions may emit them; Phase 1 emits none.
 - Errors expose stable codes and correlation identifiers, not secrets, stack traces,
   database details, or authorization reasoning that reveals another tenant's existence.
+
+## Phase 2 extension: authentication and tenant sessions
+
+### Assets and boundaries
+
+Phase 2 adds four sensitive assets: the PKCE verifier and callback state, provider access
+and refresh tokens, the opaque Quayt session credential, and the selected tenant context.
+The system browser and loopback callback are untrusted input boundaries. The OS credential
+store is the only durable client secret store. PostgreSQL is authoritative for actors,
+memberships, device-session state, credential generations, and authentication audit.
+
+The provider access token authorizes only device-session creation or rotation. It does not
+authorize a tenant. Normal service requests use the opaque Quayt credential; the service
+must hash it, load the current non-revoked generation, and reconstruct actor and tenant
+context from current database records on every request.
+
+### Required controls
+
+- Native login uses Authorization Code with S256 PKCE, unpredictable single-use state and
+  nonce, a listener bound before browser launch to `127.0.0.1` on an ephemeral port, an
+  exact callback host/path, bounded request size/count, cancellation, and a two-minute
+  timeout.
+- The client must cryptographically validate the ID token signature and required claims,
+  including issuer, audience/`azp`, expiry, and nonce. Parsing an unsigned JWT payload is
+  not proof of response binding, even when the ID token is not service authority.
+- The service pins accepted access-token algorithms and validates signature, issuer,
+  audience, expiry, issue time, and non-empty subject. JWKS resolution and public session
+  endpoints require bounded network work and abuse controls.
+- A provider access-token digest may establish only one device-session lineage. Creation
+  must atomically consume or uniquely bind the digest; replay cannot mint another durable
+  session. Rotation requires the current Quayt credential and the same verified subject.
+- Quayt credential rotation is atomic and single-use. Reuse of a rotated generation
+  revokes the complete family. Device sessions have both idle and absolute expiry; refresh
+  cannot extend the absolute limit.
+- Tenant UUIDs are selectors only. Selection and every protected request recheck active
+  actor, tenant, membership, and device-session state. A missing or removed membership
+  denies context construction without revealing whether another tenant exists.
+- Login, tenant selection, credential rotation, replay detection, replacement, and logout
+  are audited in the same transaction. Audit records are append-only and identify the
+  affected session and tenant without storing tokens or their hashes.
+- Provider and Quayt credentials remain in the OS credential store and secret-bearing Rust
+  types implement neither `Serialize` nor `Debug`. Snapshots, CLI, IPC, signals, browser
+  responses, logs, errors, crash output, and non-secret files contain safe status only.
+- Authentication configuration is mandatory in every mode. Test verifiers and repositories
+  are injected only by test code and cannot be selected by environment, headers, routes,
+  or packaged client commands.
+
+### Residual boundary
+
+The local model does not defend against another process already running as the same OS
+user. Phase 2 is development-only and does not authorize production deployment. Release
+still owns artifact provenance, platform signing, dependency attestations, and production
+secret delivery.

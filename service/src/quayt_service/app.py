@@ -12,7 +12,12 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.base import RequestResponseEndpoint
 from starlette.responses import Response
 
+from quayt_service.auth_routes import router as auth_router
+from quayt_service.database import create_database_engine, create_session_factory
 from quayt_service.errors import ErrorBody, ErrorDetail, ErrorEnvelope, ServiceError
+from quayt_service.oidc import JwtOidcVerifier, OidcVerifier
+from quayt_service.repository import PostgresSessionRepository, SessionRepository
+from quayt_service.security import CredentialHasher
 from quayt_service.settings import Settings
 
 
@@ -40,7 +45,12 @@ def _error_response(
     return JSONResponse(status_code=status_code, content=envelope.model_dump(exclude_none=True))
 
 
-def create_app(settings: Settings | None = None) -> FastAPI:
+def create_app(
+    settings: Settings | None = None,
+    *,
+    repository: SessionRepository | None = None,
+    oidc_verifier: OidcVerifier | None = None,
+) -> FastAPI:
     active_settings = Settings.from_env() if settings is None else settings
     active_settings.validate()
 
@@ -52,14 +62,28 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         openapi_url="/api/v1/openapi.json",
     )
     app.state.settings = active_settings
+    if repository is None:
+        assert active_settings.database_url is not None
+        engine = create_database_engine(active_settings.database_url)
+        app.state.database_engine = engine
+        repository = PostgresSessionRepository(create_session_factory(engine))
+    app.state.session_repository = repository
+    app.state.oidc_verifier = oidc_verifier or JwtOidcVerifier(active_settings)
+    app.state.credential_hasher = CredentialHasher(active_settings.session_hash_key)
 
     if active_settings.allowed_origins:
         app.add_middleware(
             CORSMiddleware,
             allow_origins=list(active_settings.allowed_origins),
             allow_credentials=True,
-            allow_methods=["GET"],
-            allow_headers=["Authorization", "Content-Type", "If-Match", "Idempotency-Key"],
+            allow_methods=["GET", "POST"],
+            allow_headers=[
+                "Authorization",
+                "Content-Type",
+                "If-Match",
+                "Idempotency-Key",
+                "X-Quayt-Session-Credential",
+            ],
         )
 
     @app.middleware("http")
@@ -68,6 +92,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         request.state.request_id = request_id
         response = await call_next(request)
         response.headers["X-Request-ID"] = request_id
+        if request.url.path.startswith("/api/v1/session"):
+            response.headers["Cache-Control"] = "no-store"
+            response.headers["Pragma"] = "no-cache"
         return response
 
     @app.exception_handler(ServiceError)
@@ -128,8 +155,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return {"status": "live"}
 
     @app.get("/health/ready", include_in_schema=False)
-    async def readiness() -> dict[str, str]:
-        return {"status": "ready"}
+    def readiness() -> JSONResponse:
+        ready = app.state.session_repository.ready() and app.state.oidc_verifier.ready()
+        return JSONResponse(
+            status_code=200 if ready else 503,
+            content={"status": "ready" if ready else "not_ready"},
+        )
 
     @app.get("/api/v1", tags=["service"])
     async def api_boundary() -> dict[str, str]:
@@ -138,5 +169,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "service": active_settings.service_name,
             "service_version": active_settings.service_version,
         }
+
+    app.include_router(auth_router)
 
     return app

@@ -6,3 +6,7 @@ src-tauri/gen/
 bin/
 pkg/
 *.clapp
+.env
+service/.env
+service/.venv/
+service/src/*.egg-info/

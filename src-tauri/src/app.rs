@@ -12,7 +12,7 @@ async fn run_cmd(req: Value, app: AppHandle, core: State<'_, Core>) -> Result<Va
     if let Some(response) = clappkit::app::window_cmd(&app, &req, window_policy()) {
         return Ok(response);
     }
-    let reply = core.handle(req).await;
+    let reply = core.handle_gui(req).await;
     clappkit::app::push_state(&app, reply.snapshot);
     Ok(reply.resp)
 }
@@ -24,17 +24,23 @@ pub fn run() {
             let control = tauri::async_runtime::block_on(clappkit::connect_or_die(CLI));
             let core = Core::new();
             let ipc_core = core.clone();
+            let startup_core = core.clone();
+            let startup_app = app.handle().clone();
             clappkit::app::spawn_ipc(
                 app.handle().clone(),
                 CLI,
                 window_policy(),
                 move |req, _caller| {
                     let core = ipc_core.clone();
-                    async move { core.handle(req).await }
+                    async move { core.handle_cli(req).await }
                 },
             );
             app.manage(core);
             app.manage(control);
+            tauri::async_runtime::spawn(async move {
+                let snapshot = startup_core.bootstrap().await;
+                clappkit::app::push_state(&startup_app, snapshot);
+            });
             Ok(())
         })
         .on_window_event(|window, event| {
