@@ -15,7 +15,7 @@ def test_migration_graph_has_one_expected_head() -> None:
     assert scripts.get_heads() == [MIGRATION_HEAD]
 
 
-def test_model_contains_only_phase_two_authoritative_tables() -> None:
+def test_model_contains_authoritative_tables() -> None:
     assert set(Base.metadata.tables) == {
         "actors",
         "tenants",
@@ -23,4 +23,5 @@ def test_model_contains_only_phase_two_authoritative_tables() -> None:
         "device_sessions",
         "credential_generations",
         "auth_audit",
+        "vessel_calls",
     }

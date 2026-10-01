@@ -97,6 +97,54 @@ pub struct ProviderTokens {
     pub refresh: Option<Zeroizing<String>>,
 }
 
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct VesselCall {
+    pub id: String,
+    pub vessel_name: String,
+    pub imo_number: String,
+    pub eta: String,
+    pub etd: Option<String>,
+    pub berth: Option<String>,
+    pub status: String,
+    pub agent_name: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq, Default)]
+pub struct VesselCallSummary {
+    pub total: u64,
+    pub expected: u64,
+    pub arrived: u64,
+    pub berthed: u64,
+    pub departed: u64,
+    pub cancelled: u64,
+}
+
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum VesselCallListResponse {
+    Items { items: Vec<VesselCall> },
+    VesselCalls { vessel_calls: Vec<VesselCall> },
+    Bare(Vec<VesselCall>),
+}
+
+impl VesselCallListResponse {
+    fn into_calls(self) -> Vec<VesselCall> {
+        match self {
+            Self::Items { items } => items,
+            Self::VesselCalls { vessel_calls } => vessel_calls,
+            Self::Bare(calls) => calls,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct VesselCallFilters {
+    pub status: Option<String>,
+    pub query: Option<String>,
+    pub eta_from: Option<String>,
+    pub eta_to: Option<String>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SafeError {
     InvalidServiceUrl,
@@ -110,6 +158,7 @@ pub enum SafeError {
     SessionRejected,
     TenantRejected,
     LogoutIncomplete,
+    VesselCallsUnavailable,
 }
 
 impl SafeError {
@@ -126,6 +175,7 @@ impl SafeError {
             Self::SessionRejected => "sessionRejected",
             Self::TenantRejected => "tenantRejected",
             Self::LogoutIncomplete => "logoutIncomplete",
+            Self::VesselCallsUnavailable => "vesselCallsUnavailable",
         }
     }
 
@@ -146,6 +196,7 @@ impl SafeError {
             Self::LogoutIncomplete => {
                 "Sign-out could not be confirmed. Quayt will not use the stored session."
             }
+            Self::VesselCallsUnavailable => "Vessel calls could not be loaded. Try again.",
         }
     }
 }
@@ -353,6 +404,88 @@ impl ServiceApi {
             Ok(())
         } else {
             Err(SafeError::LogoutIncomplete)
+        }
+    }
+
+    pub async fn vessel_call_summary(
+        &self,
+        base: &Url,
+        session: &str,
+    ) -> Result<VesselCallSummary, SafeError> {
+        self.get_vessel_calls(endpoint(base, "/api/v1/vessel-calls/summary")?, session)
+            .await
+    }
+
+    pub async fn vessel_calls(
+        &self,
+        base: &Url,
+        session: &str,
+        filters: &VesselCallFilters,
+    ) -> Result<Vec<VesselCall>, SafeError> {
+        let mut url = endpoint(base, "/api/v1/vessel-calls")?;
+        {
+            let mut query = url.query_pairs_mut();
+            for (name, value) in [
+                ("status", filters.status.as_deref()),
+                ("query", filters.query.as_deref()),
+                ("eta_from", filters.eta_from.as_deref()),
+                ("eta_to", filters.eta_to.as_deref()),
+            ] {
+                if let Some(value) = value {
+                    query.append_pair(name, value);
+                }
+            }
+        }
+        let response: VesselCallListResponse = self.get_vessel_calls(url, session).await?;
+        Ok(response.into_calls())
+    }
+
+    pub async fn vessel_call(
+        &self,
+        base: &Url,
+        session: &str,
+        id: &str,
+    ) -> Result<VesselCall, SafeError> {
+        let url = endpoint(base, &format!("/api/v1/vessel-calls/{id}"))?;
+        let response = self.authorized_get(url, session).await?;
+        response
+            .json()
+            .await
+            .map_err(|_| SafeError::VesselCallsUnavailable)
+    }
+
+    async fn get_vessel_calls<T: for<'de> Deserialize<'de>>(
+        &self,
+        url: Url,
+        session: &str,
+    ) -> Result<T, SafeError> {
+        let response = self.authorized_get(url, session).await?;
+        response
+            .json()
+            .await
+            .map_err(|_| SafeError::VesselCallsUnavailable)
+    }
+
+    async fn authorized_get(
+        &self,
+        url: Url,
+        session: &str,
+    ) -> Result<reqwest::Response, SafeError> {
+        let response = self
+            .http
+            .get(url)
+            .header(reqwest::header::AUTHORIZATION, format!("Session {session}"))
+            .send()
+            .await
+            .map_err(|_| SafeError::VesselCallsUnavailable)?;
+        if response.status() == StatusCode::UNAUTHORIZED
+            || response.status() == StatusCode::FORBIDDEN
+        {
+            Err(SafeError::SessionRejected)
+        } else if response.status().is_success() {
+            Ok(response)
+        } else {
+            Err(SafeError::VesselCallsUnavailable)
         }
     }
 }
@@ -1048,5 +1181,65 @@ mod tests {
         assert_eq!(view.version, 3);
         assert_eq!(view.active_tenant().unwrap().name, "Harbor North");
         assert_eq!(view.tenants().len(), 1);
+    }
+
+    #[test]
+    fn vessel_call_contract_matches_service_response() {
+        let call = serde_json::json!({
+            "id":"0f9426e8-98e7-4f17-aacf-d184fe9ad69e",
+            "tenant_id":"bd12b9cb-9021-4199-bc20-0cffd7e9c8bb",
+            "vessel_name":"North Star", "imo_number":"1234567",
+            "eta":"2030-01-01T12:00:00Z", "etd":null, "berth":"A-4",
+            "status":"expected", "agent_name":null
+        });
+        let response: VesselCallListResponse =
+            serde_json::from_value(serde_json::json!({"items":[call]})).unwrap();
+        let calls = response.into_calls();
+        assert_eq!(calls[0].vessel_name, "North Star");
+        assert_eq!(calls[0].imo_number, "1234567");
+        assert_eq!(calls[0].agent_name, None);
+        assert_eq!(calls[0].berth.as_deref(), Some("A-4"));
+        let summary: VesselCallSummary = serde_json::from_value(serde_json::json!({
+            "total": 7, "expected": 2, "arrived": 1, "berthed": 2, "departed": 1, "cancelled": 1
+        }))
+        .unwrap();
+        assert_eq!(summary.total, 7);
+        assert_eq!(summary.berthed, 2);
+    }
+
+    #[test]
+    fn vessel_call_query_contract_uses_query_and_offset_timestamps() {
+        let filters = VesselCallFilters {
+            status: Some("expected".into()),
+            query: Some("North Star".into()),
+            eta_from: Some("2030-02-03T00:00:00+00:00".into()),
+            eta_to: Some("2030-02-03T23:59:59.999999+00:00".into()),
+        };
+        let base = Url::parse("https://quayt.example/").unwrap();
+        let mut url = endpoint(&base, "/api/v1/vessel-calls").unwrap();
+        {
+            let mut query = url.query_pairs_mut();
+            for (name, value) in [
+                ("status", filters.status.as_deref()),
+                ("query", filters.query.as_deref()),
+                ("eta_from", filters.eta_from.as_deref()),
+                ("eta_to", filters.eta_to.as_deref()),
+            ] {
+                if let Some(value) = value {
+                    query.append_pair(name, value);
+                }
+            }
+        }
+        assert_eq!(url.query_pairs().find(|(name, _)| name == "search"), None);
+        assert_eq!(
+            url.query_pairs()
+                .find(|(name, _)| name == "query")
+                .unwrap()
+                .1,
+            "North Star"
+        );
+        assert!(url
+            .as_str()
+            .contains("eta_to=2030-02-03T23%3A59%3A59.999999%2B00%3A00"));
     }
 }

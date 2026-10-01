@@ -5,7 +5,7 @@ from dataclasses import replace
 from typing import Annotated
 from uuid import UUID, uuid4
 
-from conftest import TENANT_ID, FakeRepository, FakeVerifier
+from conftest import TENANT_ID, FakeRepository, FakeVerifier, FakeVesselCallRepository
 from fastapi import Depends, FastAPI
 from fastapi.testclient import TestClient
 
@@ -18,7 +18,14 @@ from quayt_service.settings import Settings
 def client_for(
     settings: Settings, repository: FakeRepository, verifier: FakeVerifier
 ) -> TestClient:
-    return TestClient(create_app(settings, repository=repository, oidc_verifier=verifier))
+    return TestClient(
+        create_app(
+            settings,
+            repository=repository,
+            oidc_verifier=verifier,
+            vessel_call_repository=FakeVesselCallRepository(),
+        )
+    )
 
 
 def create_device_session(
@@ -131,7 +138,12 @@ def test_cross_tenant_selection_is_generic_denial(
 def test_request_context_rechecks_membership_for_every_request(
     settings: Settings, fake_repository: FakeRepository, fake_verifier: FakeVerifier
 ) -> None:
-    app: FastAPI = create_app(settings, repository=fake_repository, oidc_verifier=fake_verifier)
+    app: FastAPI = create_app(
+        settings,
+        repository=fake_repository,
+        oidc_verifier=fake_verifier,
+        vessel_call_repository=FakeVesselCallRepository(),
+    )
 
     @app.get("/test/context")
     def context_probe(
@@ -192,7 +204,12 @@ def test_provider_token_reuse_with_different_client_is_denied(
 def test_concurrent_provider_token_creation_has_one_lineage(
     settings: Settings, fake_repository: FakeRepository, fake_verifier: FakeVerifier
 ) -> None:
-    app = create_app(settings, repository=fake_repository, oidc_verifier=fake_verifier)
+    app = create_app(
+        settings,
+        repository=fake_repository,
+        oidc_verifier=fake_verifier,
+        vessel_call_repository=FakeVesselCallRepository(),
+    )
 
     def attempt(client_instance_id: UUID) -> tuple[int, dict[str, object]]:
         with TestClient(app) as client:

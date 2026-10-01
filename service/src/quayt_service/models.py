@@ -149,3 +149,30 @@ class AuthAudit(Base):
     occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     request_id: Mapped[str] = mapped_column(String(64), nullable=False)
     details: Mapped[dict[str, Any]] = mapped_column(JSON_VALUE, nullable=False, default=dict)
+
+
+class VesselCall(Base):
+    __tablename__ = "vessel_calls"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('expected','arrived','berthed','departed','cancelled')",
+            name="ck_vessel_calls_status",
+        ),
+        CheckConstraint("imo_number ~ '^[0-9]{7}$'", name="ck_vessel_calls_imo_number"),
+        Index("ix_vessel_calls_tenant_eta", "tenant_id", "eta", "id"),
+        Index("ix_vessel_calls_tenant_status_eta", "tenant_id", "status", "eta"),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    tenant_id: Mapped[UUID] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
+    )
+    vessel_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    imo_number: Mapped[str] = mapped_column(String(7), nullable=False)
+    agent_name: Mapped[Optional[str]] = mapped_column(String(255))  # noqa: UP045
+    berth: Mapped[Optional[str]] = mapped_column(String(100))  # noqa: UP045
+    status: Mapped[str] = mapped_column(String(20), nullable=False)
+    eta: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    etd: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))  # noqa: UP045
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

@@ -26,6 +26,8 @@ dev = [
 
 [project.scripts]
 quayt-service = "quayt_service.__main__:main"
+quayt-provision-demo = "quayt_service.provision_demo:main"
+quayt-seed-vessel-calls = "quayt_service.seed_vessel_calls:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

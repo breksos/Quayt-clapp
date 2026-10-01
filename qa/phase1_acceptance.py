@@ -84,22 +84,32 @@ def main() -> int:
     snapshot = re.search(r"struct Snapshot\s*\{(.*?)\n\}", state_source, re.S)
     require(snapshot is not None, "Snapshot declaration not found")
     fields = re.findall(r"^\s*([a-z_]+):", snapshot.group(1), re.M)
-    require(fields == ["ok", "rev", "connection"], "snapshot exposes unexpected fields")
+    require(
+        fields == ["ok", "rev", "busy", "connection", "authentication", "tenants", "issue"],
+        "safe snapshot exposes unexpected fields",
+    )
     secret_terms = ("password", "secret", "token", "credential", "authorization", "cookie")
     require(not any(term in snapshot.group(1).lower() for term in secret_terms), "snapshot may expose a secret")
     connection = re.search(r"struct ConnectionStatus\s*\{(.*?)\n\}", state_source, re.S)
     require(connection is not None, "ConnectionStatus declaration not found")
     connection_fields = re.findall(r"^\s*([a-z_]+):", connection.group(1), re.M)
-    require(connection_fields == ["status", "summary"], "connection status exposes unexpected fields")
+    require(
+        connection_fields == ["status", "service_url", "summary"],
+        "connection status exposes unexpected fields",
+    )
     require(not any(term in connection.group(1).lower() for term in secret_terms),
             "connection status may expose a secret")
     types_source = read("src/types.ts")
     types_snapshot = re.search(r"export type Snapshot\s*=\s*\{(.*?)\n\};", types_source, re.S)
     require(types_snapshot is not None, "TypeScript Snapshot declaration not found")
-    type_fields = re.findall(r"^\s*([a-z]+):", types_snapshot.group(1), re.M)
-    require(type_fields == ["ok", "rev", "connection"],
-            "TypeScript snapshot differs from connection-status contract")
-    require('connection: { status: "notConfigured"; summary: string };' in types_snapshot.group(1),
+    type_fields = re.findall(r"^  ([A-Za-z][A-Za-z0-9]*):", types_snapshot.group(1), re.M)
+    require(
+        type_fields == [
+            "ok", "rev", "busy", "connection", "authentication", "tenants", "issue", "vesselCalls"
+        ],
+        "TypeScript GUI snapshot differs from the safe projection contract",
+    )
+    require("serviceUrl: string | null;" in types_snapshot.group(1),
             "TypeScript connection status shape is unexpected")
     require(not any(term in types_snapshot.group(1).lower() for term in secret_terms),
             "TypeScript snapshot may expose a secret")

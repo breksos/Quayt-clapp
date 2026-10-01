@@ -19,6 +19,8 @@ from quayt_service.oidc import JwtOidcVerifier, OidcVerifier
 from quayt_service.repository import PostgresSessionRepository, SessionRepository
 from quayt_service.security import CredentialHasher
 from quayt_service.settings import Settings
+from quayt_service.vessel_call_routes import router as vessel_call_router
+from quayt_service.vessel_calls import PostgresVesselCallRepository, VesselCallRepository
 
 
 def _request_id(request: Request) -> str:
@@ -50,6 +52,7 @@ def create_app(
     *,
     repository: SessionRepository | None = None,
     oidc_verifier: OidcVerifier | None = None,
+    vessel_call_repository: VesselCallRepository | None = None,
 ) -> FastAPI:
     active_settings = Settings.from_env() if settings is None else settings
     active_settings.validate()
@@ -62,12 +65,20 @@ def create_app(
         openapi_url="/api/v1/openapi.json",
     )
     app.state.settings = active_settings
-    if repository is None:
+    session_factory = None
+    if repository is None or vessel_call_repository is None:
         assert active_settings.database_url is not None
         engine = create_database_engine(active_settings.database_url)
         app.state.database_engine = engine
-        repository = PostgresSessionRepository(create_session_factory(engine))
+        session_factory = create_session_factory(engine)
+    if repository is None:
+        assert session_factory is not None
+        repository = PostgresSessionRepository(session_factory)
+    if vessel_call_repository is None:
+        assert session_factory is not None
+        vessel_call_repository = PostgresVesselCallRepository(session_factory)
     app.state.session_repository = repository
+    app.state.vessel_call_repository = vessel_call_repository
     app.state.oidc_verifier = oidc_verifier or JwtOidcVerifier(active_settings)
     app.state.credential_hasher = CredentialHasher(active_settings.session_hash_key)
 
@@ -92,7 +103,7 @@ def create_app(
         request.state.request_id = request_id
         response = await call_next(request)
         response.headers["X-Request-ID"] = request_id
-        if request.url.path.startswith("/api/v1/session"):
+        if request.url.path.startswith(("/api/v1/session", "/api/v1/vessel-calls")):
             response.headers["Cache-Control"] = "no-store"
             response.headers["Pragma"] = "no-cache"
         return response
@@ -156,7 +167,11 @@ def create_app(
 
     @app.get("/health/ready", include_in_schema=False)
     def readiness() -> JSONResponse:
-        ready = app.state.session_repository.ready() and app.state.oidc_verifier.ready()
+        ready = (
+            app.state.session_repository.ready()
+            and app.state.vessel_call_repository.ready()
+            and app.state.oidc_verifier.ready()
+        )
         return JSONResponse(
             status_code=200 if ready else 503,
             content={"status": "ready" if ready else "not_ready"},
@@ -171,5 +186,6 @@ def create_app(
         }
 
     app.include_router(auth_router)
+    app.include_router(vessel_call_router)
 
     return app

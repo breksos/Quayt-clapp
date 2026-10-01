@@ -105,3 +105,45 @@ The local model does not defend against another process already running as the s
 user. Phase 2 is development-only and does not authorize production deployment. Release
 still owns artifact provenance, platform signing, dependency attestations, and production
 secret delivery.
+
+## Phase 3 extension: read-only vessel calls
+
+### Assets and boundaries
+
+Phase 3 adds tenant-owned operational data: vessel identities, schedules, berths, agents,
+status, and summary counts. PostgreSQL remains authoritative. A current Quayt session and
+active membership select exactly one tenant; the desktop's active workspace is display
+state and never grants service authority. Vessel-call data may enter the human GUI only.
+It must remain absent from the agent CLI projection, Clatch signals, logs, errors, and
+durable local files.
+
+### Required controls
+
+- List, detail, summary, and every filter derive their tenant exclusively from a freshly
+  verified `RequestContext`. A client-supplied vessel-call UUID or query value never
+  supplies or broadens tenant scope, and a foreign UUID returns the same safe absence as
+  an unknown UUID.
+- Every tenant-owned table has a non-null tenant key and forced PostgreSQL RLS for a
+  non-bypass runtime role. Repository tenant predicates remain mandatory defense in depth.
+- Desktop requests capture a tenant/session generation. Results are committed only if
+  that generation is still current; switching tenant, signing out, or reconfiguring the
+  service invalidates all outstanding operational reads and clears prior data.
+- Filters, pagination, date ranges, response rows, and response bytes are bounded. Query
+  construction uses bound parameters; wildcard search escapes `%`, `_`, and the escape
+  character. Malformed values return stable safe errors.
+- Operational responses use `Cache-Control: no-store`. The Rust core keeps operational
+  values only in the GUI projection and never serializes them into CLI replies, Clatch
+  state/signals, settings, credential storage, or diagnostic output.
+- Development seed execution checks the typed environment before opening the database,
+  refuses every non-development mode, accepts only an existing active tenant, uses
+  deterministic identifiers and idempotent writes, and contains fictional data only.
+- The migration is forward-only for rollout, preserves tenant foreign keys and validation
+  constraints, adds tenant-leading indexes for bounded reads, and passes clean upgrade,
+  drift, rollback-test, RLS, and cross-tenant transaction-reuse checks in PostgreSQL CI.
+
+### Residual boundary
+
+Phase 3 exposes no operational mutation, public tracking, integration, upload, webhook,
+signal, or offline cache. Those surfaces remain blocked by their later-work gates. A
+process already running as the same OS user can observe the GUI process and remains outside
+the local protection model.

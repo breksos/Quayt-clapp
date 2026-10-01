@@ -20,7 +20,7 @@ from quayt_service.models import (
     Tenant,
 )
 
-MIGRATION_HEAD = "0001_auth_sessions"
+MIGRATION_HEAD = "0002_vessel_calls"
 
 
 class SessionRepository(Protocol):

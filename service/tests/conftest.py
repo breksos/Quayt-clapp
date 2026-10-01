@@ -11,6 +11,12 @@ import pytest
 from quayt_service.domain import MembershipView, SessionView, VerifiedIdentity
 from quayt_service.oidc import TokenVerificationError
 from quayt_service.settings import Settings
+from quayt_service.vessel_calls import (
+    VesselCallFilters,
+    VesselCallListResponse,
+    VesselCallResponse,
+    VesselCallSummaryResponse,
+)
 
 ACTOR_ID = UUID("10000000-0000-0000-0000-000000000001")
 TENANT_ID = UUID("20000000-0000-0000-0000-000000000001")
@@ -185,6 +191,58 @@ class FakeRepository:
         for key, (owner, _) in tuple(self.credentials.items()):
             if owner == session_id:
                 self.credentials[key] = (owner, "revoked")
+
+
+class FakeVesselCallRepository:
+    def __init__(
+        self, items: list[VesselCallResponse] | None = None, *, ready: bool = True
+    ) -> None:
+        self.items = items or []
+        self.ready_value = ready
+
+    def ready(self) -> bool:
+        return self.ready_value
+
+    def list(self, tenant_id: UUID, filters: VesselCallFilters) -> VesselCallListResponse:
+        items = [item for item in self.items if item.tenant_id == tenant_id]
+        if filters.status:
+            items = [item for item in items if item.status == filters.status]
+        if filters.query:
+            query = filters.query.casefold()
+            items = [
+                item
+                for item in items
+                if query in item.vessel_name.casefold() or query in item.imo_number.casefold()
+            ]
+        if filters.eta_from:
+            items = [item for item in items if item.eta >= filters.eta_from]
+        if filters.eta_to:
+            items = [item for item in items if item.eta <= filters.eta_to]
+        items.sort(key=lambda item: (item.eta, item.id))
+        total = len(items)
+        return VesselCallListResponse(
+            items=items[filters.offset : filters.offset + filters.limit],
+            total=total,
+            limit=filters.limit,
+            offset=filters.offset,
+        )
+
+    def get(self, tenant_id: UUID, vessel_call_id: UUID) -> VesselCallResponse | None:
+        return next(
+            (
+                item
+                for item in self.items
+                if item.tenant_id == tenant_id and item.id == vessel_call_id
+            ),
+            None,
+        )
+
+    def summary(self, tenant_id: UUID) -> VesselCallSummaryResponse:
+        items = [item for item in self.items if item.tenant_id == tenant_id]
+        counts = {name: 0 for name in ("expected", "arrived", "berthed", "departed", "cancelled")}
+        for item in items:
+            counts[item.status.value] += 1
+        return VesselCallSummaryResponse(total=len(items), **counts)
 
 
 @pytest.fixture

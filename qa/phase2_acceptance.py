@@ -110,7 +110,11 @@ def main() -> int:
     ts_snapshot = re.search(r"export type Snapshot\s*=\s*\{(.*?)^\};", types, re.S | re.M)
     ts_body = ts_snapshot.group(1) if ts_snapshot else ""
     ts_fields = re.findall(r"^  ([A-Za-z][A-Za-z0-9]*):", ts_body, re.M)
-    check(failures, ts_fields == expected_rust_fields["Snapshot"], "TypeScript snapshot schema changed")
+    check(
+        failures,
+        ts_fields == [*expected_rust_fields["Snapshot"], "vesselCalls"],
+        "TypeScript GUI snapshot schema changed",
+    )
     check(
         failures,
         not any(term in ts_body.lower() for term in FORBIDDEN_SNAPSHOT_TERMS),
